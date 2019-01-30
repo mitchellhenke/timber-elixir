@@ -86,88 +86,11 @@ defmodule Timber.Events.ErrorEvent do
   end
 
   @doc """
-  Builds a new error event from an error / exception.
-  """
-  @spec from_exception(Exception.t()) :: t
-  def from_exception(%{__exception__: true, __struct__: module} = error) do
-    message = Exception.message(error)
-    module_name = Timber.Utils.Module.name(module)
-
-    metadata_map =
-      error
-      |> Map.from_struct()
-      |> Map.delete(:__exception__)
-      |> Map.delete(:__struct__)
-      |> Map.delete(:message)
-
-    metadata_json =
-      if map_size(metadata_map) == 0 do
-        nil
-      else
-        case Jason.encode_to_iodata(metadata_map) do
-          {:ok, json} -> IO.iodata_to_binary(json)
-          {:error, _error} -> nil
-        end
-      end
-
-    %__MODULE__{
-      name: module_name,
-      message: message,
-      metadata_json: metadata_json
-    }
-  end
-
-  @doc """
-  Adds a stacktrace to an event, converting it if necessary
-  """
-  @spec add_backtrace(t, [stacktrace_entry] | [backtrace_entry]) :: t
-  def add_backtrace(event, [trace | _] = backtrace) when is_map(trace) do
-    backtrace = Enum.slice(backtrace, 0..(@max_backtrace_size - 1))
-    %{event | backtrace: backtrace}
-  end
-
-  def add_backtrace(event, [stack | _rest] = stacktrace) when is_tuple(stack) do
-    add_backtrace(event, stacktrace_to_backtrace(stacktrace))
-  end
-
-  def add_backtrace(event, []) do
-    event
-  end
-
-  @doc """
   Message to be used when logging.
   """
   @spec message(t) :: IO.chardata()
   def message(%__MODULE__{name: name, message: message}),
     do: [?(, name, ?), ?\s, message]
-
-  #
-  # Util
-  #
-
-  @spec stacktrace_to_backtrace(list) :: [backtrace_entry]
-  defp stacktrace_to_backtrace(stacktrace) do
-    # arity is an integer or list of arguments
-    Enum.map(stacktrace, fn {module, function, arity, location} ->
-      arity =
-        case arity do
-          arity when is_list(arity) -> length(arity)
-          _ -> arity
-        end
-
-      file =
-        Keyword.get(location, :file)
-        |> Kernel.to_string()
-
-      line = Keyword.get(location, :line)
-
-      %{
-        function: Exception.format_mfa(module, function, arity),
-        file: file,
-        line: line
-      }
-    end)
-  end
 
   #
   # Implementations
